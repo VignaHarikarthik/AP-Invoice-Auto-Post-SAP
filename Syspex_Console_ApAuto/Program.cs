@@ -243,6 +243,11 @@ namespace Syspex_Console_ApAuto
                         apinvoice.Comments = "Created by Ap Invoice Automation " + DateTime.Now.ToShortDateString() + "";
                         iTotalPO_Line = grpo.Lines.Count;
 
+                        //Update GRPO Document
+                        grpo.JournalMemo = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 50);
+                        grpo.Update();
+
+
                         int x;
                         for (x = 0; x <= iTotalPO_Line - 1; x++)
                         {
@@ -317,6 +322,11 @@ namespace Syspex_Console_ApAuto
                     apinvoice.NumAtCard = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 100);
                     apinvoice.Comments = "Created by Ap Invoice Automation on " + DateTime.Now.ToShortDateString() + "";
                     iTotalPO_Line = grpo.Lines.Count;
+
+                    //Update GRPO Document
+                    grpo.JournalMemo = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 50);
+                    grpo.Update();
+
 
                     int x;
                     for (x = 0; x <= iTotalPO_Line - 1; x++)
