@@ -46,8 +46,26 @@ namespace Syspex_Console_ApAuto
             // PO in detail 
             //1. Mulitple PO with muliple grn combine together and check the line Total amount + tax  and tally with the extracted amount and post ap invoice 
             //2. Muitple PO with mulitple grn combine together and check the total line before discount + tax and tally the extracted amount and post ap invoice 
-            //UploadtoSAP();
 
+            // Uplaod the PDF to SAP
+            // upload_pdf_sap();
+
+
+
+            // Extracted Data Post to SAP
+            post_apinvoices();
+
+            //System.Threading.Thread.Sleep(1000);
+
+            // Rename the file name after posted
+            rename_file_name();
+
+
+
+        }
+
+        public static void post_apinvoices()
+        {
             DataTable table = GetExtractedData();
             if (table.Rows.Count > 0)
             {
@@ -68,15 +86,22 @@ namespace Syspex_Console_ApAuto
                                 strSql = "select CardName from OPCH where DocNum= '" + docnum + "'";
                                 recordset.DoQuery(strSql);
                                 string seller_name = Convert.ToString(recordset.Fields.Item("CardName").Value);
-                                send_email("analisa@syspex.com,vigna@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name,50), docnum);
-
+                                send_email("analisa@syspex.com,vigna@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
+                                //1 for sucess
+                                UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", docnum);
                             }
-
-                            //1 for sucess
-                            UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", docnum);
-
-
-
+                            if (docnum.Contains("10001467 - There is already a record with duplicated customer/vendor reference number."))
+                            {
+                                string strSql;
+                                var recordset = (SAPbobsCOM.Recordset)oCompany.GetBusinessObject(SAPbobsCOM.BoObjectTypes.BoRecordset);
+                                strSql = "select CardName, docnum from OPCH where NumAtCard like '%" + table.Rows[i]["invoice_number"].ToString() + "%'";
+                                recordset.DoQuery(strSql);
+                                string seller_name = Convert.ToString(recordset.Fields.Item("CardName").Value);
+                                send_email("analisa@syspex.com,vigna@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
+                                //1 for sucess
+                                UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", Convert.ToString(recordset.Fields.Item("docnum").Value));
+                            }
+                           
                         }
                         else
                         {
@@ -85,11 +110,38 @@ namespace Syspex_Console_ApAuto
                     }
                 }
             }
-
-
         }
+        static void rename_file_name()
+        {
+            Regex rx = new Regex("^[0-9]{14}|[0-9]{10}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            StringBuilder sb_filename = new StringBuilder();
+            foreach (var file_path in
+                 Directory
+     .EnumerateFiles(@"F:\apinvoice", "*.pdf")
+   .Where(x => rx.IsMatch(Path.GetFileNameWithoutExtension(x))))
+            {
+                DataTable dt = Getfilename(Path.GetFileName(file_path).ToString());
+                if (dt.Rows.Count > 0)
+                {
+                    if (dt.Rows[0]["sap_docnum"].ToString().Trim() != "")
+                    {
+                        //Once Pushed To SAP Then Rename the File and Path
+                        UpdateSAPSTATUS(dt.Rows[0]["sap_docnum"].ToString());
+                        System.IO.File.Move(file_path, @"F:\apinvoice\" + dt.Rows[0]["sap_docnum"].ToString().Replace(" ", "") + ".pdf");
+                    }
+                    else
+                    {
+                        sb_filename.Append(Path.GetFileName(file_path).ToString() + ",");
 
-        public static string UploadtoSAP()
+                    }
+
+                }
+            }
+        
+        }
+       
+     
+        public static string upload_pdf_sap()
         {
             int errCode = 0;
             try
@@ -130,14 +182,12 @@ namespace Syspex_Console_ApAuto
                 sErrMsg = Ex.ToString();
             }
 
-
             return errCode.ToString();
 
 
 
 
         }
-
         public static string post_to_sap(string po_number, string invoice_number, double extracted_amount, string line_amount, string po_number_detail, SAPbobsCOM.Company ocompany)
         {
             DataTable dt = new DataTable();
@@ -154,13 +204,13 @@ namespace Syspex_Console_ApAuto
                 {
                     // add the tax if the po in the detail 
                     if (!string.IsNullOrEmpty(po_number_detail))
+
                         actual_amount += Convert.ToDouble(dt.Rows[i]["grn total"].ToString()) + Convert.ToDouble(dt.Rows[i]["tax"].ToString());
                     else
                         actual_amount += Convert.ToDouble(dt.Rows[i]["grn total"].ToString());
                 }
                 //without rounding 
-                actual_amount = Math.Truncate(actual_amount * 100) / 100;
-                extracted_amount = Math.Truncate(actual_amount * 100) / 100;
+                actual_amount = Convert.ToDouble(string.Format("{0:0.00}", actual_amount));
 
                 if (actual_amount == extracted_amount)
                 {
@@ -181,42 +231,9 @@ namespace Syspex_Console_ApAuto
 
             }
 
-            //Added these senario for the singapore carton
-            //if the above two condtion not staisfy then match with the line amount total.
-            if ((string.IsNullOrEmpty(post_sucess)) & (!string.IsNullOrEmpty(po_number_detail)))
-                post_sucess = match_sap_line_amount(po_number_detail, line_amount, extracted_amount, invoice_number, ocompany);
+
             return post_sucess;
         }
-        public static string match_sap_line_amount(string po_number_detail, string line_amount, double extracted_amount, string invoice_number, SAPbobsCOM.Company oCompany)
-        {
-            DataTable dt = new DataTable();
-            string post_sucess = string.Empty;
-            double actual_amount = 0.00;
-            dt = GetLineDataWithLineAmountSap(po_number_detail, line_amount);
-            if (dt.Rows.Count > 0)
-            {
-                for (int i = 0; i < dt.Rows.Count; i++)
-                {
-                    // add the tax if the po in the detail 
-                    if (!string.IsNullOrEmpty(po_number_detail))
-                        actual_amount += Convert.ToDouble(dt.Rows[i]["grn total"].ToString()) + Convert.ToDouble(dt.Rows[i]["tax"].ToString());
-                    else
-                        actual_amount += Convert.ToDouble(dt.Rows[i]["grn total"].ToString());
-                }
-                //without rounding 
-                actual_amount = Math.Truncate(actual_amount * 100) / 100;
-                extracted_amount = Math.Truncate(actual_amount * 100) / 100;
-
-                if (actual_amount == extracted_amount)
-                {
-                    // if the po got multiple grn match add the total and if total got match
-                    post_sucess = create_apinvoice_with_multiple_grnentry(dt, invoice_number, oCompany);
-
-                }
-            }
-            return post_sucess;
-        }
-
         public static string create_apinvoice_with_multiple_grnentry(DataTable dt, string invoice_number, SAPbobsCOM.Company oCompany)
         {
             var grpo = (SAPbobsCOM.Documents)oCompany.GetBusinessObject(SAPbobsCOM.BoObjectTypes.oPurchaseDeliveryNotes);
@@ -244,7 +261,8 @@ namespace Syspex_Console_ApAuto
                         iTotalPO_Line = grpo.Lines.Count;
 
                         //Update GRPO Document
-                        grpo.JournalMemo = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 50);
+                        grpo.JournalMemo = TruncateLongString(invoice_number + '#' + grpo.CardName, 50);
+                        grpo.NumAtCard = TruncateLongString(invoice_number + '#' + grpo.CardName, 100);
                         grpo.Update();
 
 
@@ -304,7 +322,6 @@ namespace Syspex_Console_ApAuto
             }
 
         }
-
         public static string create_apinvoice_with_single_grnentry(int docentry, string invoice_number, SAPbobsCOM.Company oCompany)
         {
 
@@ -324,7 +341,8 @@ namespace Syspex_Console_ApAuto
                     iTotalPO_Line = grpo.Lines.Count;
 
                     //Update GRPO Document
-                    grpo.JournalMemo = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 50);
+                    grpo.JournalMemo = TruncateLongString(invoice_number + '#' + grpo.CardName, 50);
+                    grpo.NumAtCard = TruncateLongString(invoice_number + '#' + grpo.CardName, 100);
                     grpo.Update();
 
 
@@ -383,7 +401,6 @@ namespace Syspex_Console_ApAuto
             }
 
         }
-
         static SAPbobsCOM.Company CompanyConnection(string RegionID)
         {
             int lErrCode = 0;
@@ -415,21 +432,17 @@ namespace Syspex_Console_ApAuto
             }
             return oCompany;
         }
-
-
-
         private static string TruncateLongString(string str, int maxLength)
         {
             if (string.IsNullOrEmpty(str))
                 return str;
             return str.Substring(0, Math.Min(str.Length, maxLength));
         }
-
         public static DataTable GetDataSap(string po_number)
         {
 
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("select X.[ grn number],X.[grn docentry], sum( X.[grn total])[grn total], X.[po number]");
+            sb.AppendLine("select X.[ grn number],X.[grn docentry], CASE WHEN MAX(X.DocCur) != 'SGD' THEN FORMAT(sum(X.[grn total]),'#0.00') else FORMAT(MAX(X.[grn total]),'#0.00') END [grn total], X.[po number]");
             sb.AppendLine("from (");
             sb.AppendLine("SELECT DISTINCT T0.[DocNum] [po number], T3.DocCur, T3.[DocNum] [ grn number], T3.DocEntry [grn docentry], T4.lineNum, ");
             sb.AppendLine("CASE WHEN T3.DocCur != 'SGD' then (T4.PriceBefDi * T4.Quantity) ELSE T3.DocTotal END [grn total]  ");
@@ -452,7 +465,6 @@ namespace Syspex_Console_ApAuto
             SGConnection.Close();
             return dsetItem;
         }
-
         public static DataTable GetLineDataSap(string po_number_detail, string line_amount)
         {
 
@@ -479,8 +491,7 @@ namespace Syspex_Console_ApAuto
             SGConnection.Close();
             return dsetItem;
         }
-
-        public static DataTable GetLineDataWithLineAmountSap(string po_number_detail, string line_amount)
+        public static DataTable extract_only_po_amount_without_line_amount(string po_number_detail)
         {
 
             StringBuilder sb = new StringBuilder();
@@ -488,11 +499,11 @@ namespace Syspex_Console_ApAuto
             // get the line amount 
             sb.AppendLine("select * from (");
             sb.AppendLine("SELECT  Distinct T0.[DocNum] [po number],T3.[DocNum] [ grn number], T3.DocEntry [grn docentry], T1.ItemCOde,");
-            sb.AppendLine("CASE WHEN T3.DocCur != 'SGD' then (T4.PriceBefDi * T4.Quantity) ELSE T3.DocTotal + T3.DiscSum - T3.VatSum END [grn total] ,CASE WHEN T3.DocCur != 'SGD'  THEN T4.VatSumFrgn ELSE T3.VatSum END as [tax]");
+            sb.AppendLine("CASE WHEN T3.DocCur != 'SGD' then (T4.PriceBefDi * T4.Quantity) ELSE T4.LineTotal END [grn total] ,CASE WHEN T3.DocCur != 'SGD'  THEN T4.VatSumFrgn ELSE T4.VatSum END as [tax]");
             sb.AppendLine(" FROM OPOR T0 INNER JOIN POR1 T1 ON T0.DocEntry = T1.DocEntry");
             sb.AppendLine(" INNER JOIN  PDN1 T4 on  T1.DocEntry = T4.BaseEntry and T1.LineNum = T4.BaseLine ");
             sb.AppendLine("		  INNER JOIN  OPDN T3 on T3.DocEntry = T4.DocEntry");
-            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[grn total] in (" + line_amount + ")");
+            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ")");
 
             DataTable dsetItem = new DataTable();
             SqlCommand CmdItem = new SqlCommand(sb.ToString(), SGConnection)
@@ -506,8 +517,7 @@ namespace Syspex_Console_ApAuto
             SGConnection.Close();
             return dsetItem;
         }
-
-        private static void send_email(string To, string invoice_number, string seller_name, string docnum)
+        private static void send_email(string To, string invoice_number, string seller_name, string docnum, string amount)
         {
             //// Email Part 
             MailMessage mm = new MailMessage
@@ -521,7 +531,7 @@ namespace Syspex_Console_ApAuto
             }
 
             mm.IsBodyHtml = true;
-            mm.Subject = "AP Invoice DocNo #" + docnum + " for " + invoice_number + " #" + seller_name;
+            mm.Subject = "AP Invoice DocNo #" + docnum + "  (" + amount + ") for " + invoice_number + " #" + seller_name;
             mm.Body = "<p>Dear Acccounts Payabale Team,</p> AP Invoice have been auto-created </p>" +
      "<p> Regards,</p>" +
     "<p> DS Team</p> ";
@@ -542,11 +552,52 @@ namespace Syspex_Console_ApAuto
             smtp.Send(mm);
 
         }
+        public static void SendAutomatedEmail(string htmlString, string recipient)
 
+        {
+            try
+            {
+                //// Email Part 
+                MailMessage mm = new MailMessage
+                {
+                    From = new MailAddress("noreply@syspex.com")
+                };
+                foreach (var address in recipient.Split(new[] { ";" }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    mm.To.Add(address);
+
+                }
+
+                mm.IsBodyHtml = true;
+                mm.Subject = "Failed Invoices Not Posted as of  " + DateTime.Now.ToString("dd/MM/yyyy");
+                mm.Body = htmlString;
+                SmtpClient smtp = new SmtpClient
+                {
+                    Host = "smtp.gmail.com",
+                    EnableSsl = true
+                };
+                System.Net.NetworkCredential NetworkCred = new System.Net.NetworkCredential
+                {
+                    UserName = "noreply@syspex.com",
+                    Password = "design35"
+                };
+                smtp.UseDefaultCredentials = true;
+                smtp.Credentials = NetworkCred;
+                smtp.Port = 587;
+                smtp.Send(mm);
+
+            }
+            catch (Exception e)
+            {
+
+            }
+
+        }
         private static DataTable GetExtractedData()
         {
-            string query = @" select * from
-            [ap_invoice_typeless] where created_date>= day(getdate()) and sap_status in (0) and amount != ''";
+            string query = @"select Top 10 * from
+            [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST'";
+
 
             DataTable dsetItem = new DataTable();
             SqlCommand CmdItem = new SqlCommand(query, LocalConnection)
@@ -560,17 +611,46 @@ namespace Syspex_Console_ApAuto
             LocalConnection.Close();
             return dsetItem;
         }
-
+        public static DataTable Getfilename(string pdf_file_name)
+        {
+            string query = @"
+            select * from  dbo.ap_invoice_ocr_extract where pdf_file_name = '" + pdf_file_name + "'";
+            DataTable dsetItem = new DataTable();
+            SqlCommand CmdItem = new SqlCommand(query, LocalConnection)
+            {
+                CommandType = CommandType.Text
+            };
+            SqlDataAdapter AdptItm = new SqlDataAdapter(CmdItem);
+            AdptItm.Fill(dsetItem);
+            CmdItem.Dispose();
+            AdptItm.Dispose();
+            LocalConnection.Close();
+            return dsetItem;
+        }
+     
         private static void UpdateSAPSTATUS(string pdf_file_name, string sucess, string docnum)
         {
             if (LocalConnection.State == ConnectionState.Closed) { LocalConnection.Open(); }
             SqlCommand CmdOrdStatus = new SqlCommand();
-            CmdOrdStatus = new SqlCommand("UPDATE [ap_invoice_typeless] SET sap_status = " + sucess + ", sap_docnum = '" + docnum + "' where  pdf_file_name = '" + pdf_file_name + "'", LocalConnection);
+            CmdOrdStatus = new SqlCommand("UPDATE [ap_invoice_ocr_extract] SET sap_status = " + sucess + ", sap_docnum = '" + docnum + "' where  pdf_file_name = '" + pdf_file_name + "'", LocalConnection);
             CmdOrdStatus.CommandType = CommandType.Text;
             CmdOrdStatus.ExecuteNonQuery();
             CmdOrdStatus.Dispose();
             LocalConnection.Close();
         }
+        private static void UpdateSAPSTATUS(string docnum)
+        {
+            docnum = docnum.Trim();
+            if (LocalConnection.State == ConnectionState.Closed) { LocalConnection.Open(); }
+            SqlCommand CmdOrdStatus = new SqlCommand();
+            CmdOrdStatus = new SqlCommand("UPDATE [ap_invoice_ocr_extract] SET file_path = 'F:\\apinvoice\\" + docnum.Replace(" ", "") + ".pdf', pdf_file_name = '" + docnum + ".pdf' where  sap_docnum = '" + docnum + "'", LocalConnection);
+            CmdOrdStatus.CommandType = CommandType.Text;
+            CmdOrdStatus.ExecuteNonQuery();
+            CmdOrdStatus.Dispose();
+            LocalConnection.Close();
+        }
+
+
     }
 
 
