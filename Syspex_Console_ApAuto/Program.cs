@@ -101,7 +101,7 @@ namespace Syspex_Console_ApAuto
                                 //1 for sucess
                                 UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", Convert.ToString(recordset.Fields.Item("docnum").Value));
                             }
-                           
+
                         }
                         else
                         {
@@ -137,10 +137,10 @@ namespace Syspex_Console_ApAuto
 
                 }
             }
-        
+
         }
-       
-     
+
+
         public static string upload_pdf_sap()
         {
             int errCode = 0;
@@ -225,6 +225,7 @@ namespace Syspex_Console_ApAuto
                     {
                         if (extracted_amount == Convert.ToDouble(dt.Rows[i]["grn total"].ToString()))
                             post_sucess = create_apinvoice_with_single_grnentry(Convert.ToInt32(dt.Rows[i]["grn docentry"].ToString()), invoice_number, ocompany);
+                    
 
                     }
                 }
@@ -254,7 +255,7 @@ namespace Syspex_Console_ApAuto
                         apinvoice.CardCode = grpo.CardCode;
                         apinvoice.JournalMemo = TruncateLongString(invoice_number + '#' + grpo.CardName, 50);
                         apinvoice.DocDate = DateTime.Now;
-                        apinvoice.DocDueDate = DateTime.Now;
+                       // apinvoice.DocDueDate = DateTime.Now;
                         apinvoice.DocRate = grpo.DocRate;
                         apinvoice.NumAtCard = TruncateLongString(invoice_number + '#' + grpo.CardName, 100);
                         apinvoice.Comments = "Created by Ap Invoice Automation " + DateTime.Now.ToShortDateString() + "";
@@ -335,7 +336,7 @@ namespace Syspex_Console_ApAuto
                 {
                     apinvoice.JournalMemo = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 50);
                     apinvoice.DocDate = DateTime.Now;
-                    apinvoice.DocDueDate = DateTime.Now;
+                   // apinvoice.DocDueDate = DateTime.Now;
                     apinvoice.NumAtCard = TruncateLongString(invoice_number + '#' + apinvoice.CardName, 100);
                     apinvoice.Comments = "Created by Ap Invoice Automation on " + DateTime.Now.ToShortDateString() + "";
                     iTotalPO_Line = grpo.Lines.Count;
@@ -471,8 +472,17 @@ namespace Syspex_Console_ApAuto
             StringBuilder sb = new StringBuilder();
 
 
+            //sb.AppendLine("select * from (");
+            //sb.AppendLine("SELECT  Distinct T0.[DocNum] [po number],T3.[DocNum] [ grn number], T3.DocEntry [grn docentry], T1.ItemCOde,T3.DocTotal,");
+            //sb.AppendLine("CASE WHEN T3.DocCur != 'SGD' then (T4.PriceBefDi * T4.Quantity) ELSE T3.DocTotal + T3.DiscSum - T3.VatSum END [grn total] ,CASE WHEN T3.DocCur != 'SGD'  THEN T4.VatSumFrgn ELSE T3.VatSum END as [tax]");
+            //sb.AppendLine(" FROM OPOR T0 INNER JOIN POR1 T1 ON T0.DocEntry = T1.DocEntry");
+            //sb.AppendLine(" INNER JOIN  PDN1 T4 on  T1.DocEntry = T4.BaseEntry and T1.LineNum = T4.BaseLine ");
+            //sb.AppendLine("		  INNER JOIN  OPDN T3 on T3.DocEntry = T4.DocEntry");
+            //sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[grn total] in (" + line_amount + ")");
+
+
             sb.AppendLine("select * from (");
-            sb.AppendLine("SELECT  Distinct T0.[DocNum] [po number],T3.[DocNum] [ grn number], T3.DocEntry [grn docentry], T1.ItemCOde,");
+            sb.AppendLine("SELECT  Distinct T0.[DocNum] [po number],T3.[DocNum] [ grn number], T3.DocEntry [grn docentry], T1.ItemCOde,T3.DocTotal,");
             sb.AppendLine("CASE WHEN T3.DocCur != 'SGD' then (T4.PriceBefDi * T4.Quantity) ELSE T4.LineTotal END [grn total] ,CASE WHEN T3.DocCur != 'SGD'  THEN T4.VatSumFrgn ELSE T4.VatSum END as [tax]");
             sb.AppendLine(" FROM OPOR T0 INNER JOIN POR1 T1 ON T0.DocEntry = T1.DocEntry");
             sb.AppendLine(" INNER JOIN  PDN1 T4 on  T1.DocEntry = T4.BaseEntry and T1.LineNum = T4.BaseLine ");
@@ -544,7 +554,7 @@ namespace Syspex_Console_ApAuto
             System.Net.NetworkCredential NetworkCred = new System.Net.NetworkCredential
             {
                 UserName = "noreply@syspex.com",
-                Password = "design35"
+                Password = "design360"
             };
             smtp.UseDefaultCredentials = true;
             smtp.Credentials = NetworkCred;
@@ -579,7 +589,7 @@ namespace Syspex_Console_ApAuto
                 System.Net.NetworkCredential NetworkCred = new System.Net.NetworkCredential
                 {
                     UserName = "noreply@syspex.com",
-                    Password = "design35"
+                    Password = "design360"
                 };
                 smtp.UseDefaultCredentials = true;
                 smtp.Credentials = NetworkCred;
@@ -597,6 +607,8 @@ namespace Syspex_Console_ApAuto
         {
             string query = @"select Top 10 * from
             [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST'";
+
+
 
 
             DataTable dsetItem = new DataTable();
@@ -627,7 +639,7 @@ namespace Syspex_Console_ApAuto
             LocalConnection.Close();
             return dsetItem;
         }
-     
+
         private static void UpdateSAPSTATUS(string pdf_file_name, string sucess, string docnum)
         {
             if (LocalConnection.State == ConnectionState.Closed) { LocalConnection.Open(); }
