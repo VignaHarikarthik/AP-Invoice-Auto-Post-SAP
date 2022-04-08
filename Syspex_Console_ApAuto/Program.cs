@@ -113,7 +113,7 @@ namespace Syspex_Console_ApAuto
         }
         static void rename_file_name()
         {
-            Regex rx = new Regex("^[0-9]{14}|[0-9]{10}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            Regex rx = new Regex("^[0-9]{14}|[0-9]{10}$|[EB]{2}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
             StringBuilder sb_filename = new StringBuilder();
             foreach (var file_path in
                  Directory
@@ -605,7 +605,7 @@ namespace Syspex_Console_ApAuto
         }
         private static DataTable GetExtractedData()
         {
-            string query = @"select Top 10 * from
+            string query = @"select Top 100 * from
             [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST'";
 
 
