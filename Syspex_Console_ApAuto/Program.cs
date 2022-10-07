@@ -62,7 +62,7 @@ namespace Syspex_Console_ApAuto
 
 
 
-        }
+        } 
 
         public static void post_apinvoices()
         {
@@ -86,7 +86,7 @@ namespace Syspex_Console_ApAuto
                                 strSql = "select CardName from OPCH where DocNum= '" + docnum + "'";
                                 recordset.DoQuery(strSql);
                                 string seller_name = Convert.ToString(recordset.Fields.Item("CardName").Value);
-                                send_email("analisa@syspex.com,vigna@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
+                                send_email("analisa@syspex.com,vigna@syspex.com,jiachi.eng@syspex.com,jessly.chai@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
                                 //1 for sucess
                                 UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", docnum);
                             }
@@ -97,7 +97,7 @@ namespace Syspex_Console_ApAuto
                                 strSql = "select CardName, docnum from OPCH where NumAtCard like '%" + table.Rows[i]["invoice_number"].ToString() + "%'";
                                 recordset.DoQuery(strSql);
                                 string seller_name = Convert.ToString(recordset.Fields.Item("CardName").Value);
-                                send_email("analisa@syspex.com,vigna@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
+                                send_email("analisa@syspex.com,vigna@syspex.com,jiachi.eng@syspex.com", table.Rows[i]["invoice_number"].ToString(), TruncateLongString(seller_name, 50), docnum, table.Rows[i]["amount"].ToString());
                                 //1 for sucess
                                 UpdateSAPSTATUS(table.Rows[i]["pdf_file_name"].ToString(), "1", Convert.ToString(recordset.Fields.Item("docnum").Value));
                             }
@@ -492,7 +492,7 @@ namespace Syspex_Console_ApAuto
             DataTable dsetItem = new DataTable();
             SqlCommand CmdItem = new SqlCommand(sb.ToString(), SGConnection)
             {
-                CommandType = CommandType.Text
+                CommandType = CommandType.Text 
             };
             SqlDataAdapter AdptItm = new SqlDataAdapter(CmdItem);
             AdptItm.Fill(dsetItem);
@@ -605,7 +605,7 @@ namespace Syspex_Console_ApAuto
         }
         private static DataTable GetExtractedData()
         {
-            string query = @"select Top 100 * from
+            string query = @"select Top 10 * from
             [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST'";
 
 
