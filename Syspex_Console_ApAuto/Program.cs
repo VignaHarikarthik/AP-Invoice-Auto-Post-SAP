@@ -284,6 +284,7 @@ namespace Syspex_Console_ApAuto
                                 apinvoice.Lines.BaseEntry = grpo.DocEntry;
                                 apinvoice.Lines.BaseLine = grpo.Lines.LineNum;
                                 apinvoice.Lines.Add();
+                                
                             }
                         }
 
@@ -487,7 +488,9 @@ namespace Syspex_Console_ApAuto
             sb.AppendLine(" FROM OPOR T0 INNER JOIN POR1 T1 ON T0.DocEntry = T1.DocEntry");
             sb.AppendLine(" INNER JOIN  PDN1 T4 on  T1.DocEntry = T4.BaseEntry and T1.LineNum = T4.BaseLine ");
             sb.AppendLine("		  INNER JOIN  OPDN T3 on T3.DocEntry = T4.DocEntry");
-            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[grn total] in (" + line_amount + ")");
+            //changed GRNTOTAL TO DOCTOTAL sometimes they split the lines 
+
+            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[DocTotal] in (" + line_amount + ")");
 
             DataTable dsetItem = new DataTable();
             SqlCommand CmdItem = new SqlCommand(sb.ToString(), SGConnection)
@@ -606,8 +609,8 @@ namespace Syspex_Console_ApAuto
         private static DataTable GetExtractedData()
         {
             string query = @"select Top 10 * from
-            [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST'";
-
+            [ap_invoice_ocr_extract] where created_date>= day(getdate()) and sap_status = '0' and amount != '' and (sap_docnum= isnull(sap_docnum,'') or sap_docnum is null) and (po_no != '' or po_number_detail !='') and company ='65ST' ";
+            //string query = @"select * from [ap_invoice_ocr_extract]   where pdf_file_name = '16012023102133.pdf'";
 
 
 
