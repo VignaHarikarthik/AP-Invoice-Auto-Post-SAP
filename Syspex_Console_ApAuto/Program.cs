@@ -490,11 +490,11 @@ namespace Syspex_Console_ApAuto
             sb.AppendLine("		  INNER JOIN  OPDN T3 on T3.DocEntry = T4.DocEntry");
             //changed GRNTOTAL TO DOCTOTAL sometimes they split the lines 
 
-            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[DocTotal] in (" + line_amount + ")");
+            sb.AppendLine("where T4.TargetType ='-1' )X   where X.[po number] in (" + po_number_detail + ") and X.[grn total] in (" + line_amount + ")");
 
             DataTable dsetItem = new DataTable();
             SqlCommand CmdItem = new SqlCommand(sb.ToString(), SGConnection)
-            {
+            { 
                 CommandType = CommandType.Text 
             };
             SqlDataAdapter AdptItm = new SqlDataAdapter(CmdItem);
